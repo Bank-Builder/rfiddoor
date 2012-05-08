@@ -168,7 +168,7 @@ void writeMaxCardNo(int maxCardNo){
 int writeCard(boolean master) {
   Serial.println("in write card");
   int r = 0;
-  int nextCardNo = readMaxCardNo()+1;
+  int nextCardNo = readMaxCardNo();
   if(nextCardNo < MAXCARDNO) {
     if(cardExists()==0){
         // Write card no
@@ -180,7 +180,7 @@ int writeCard(boolean master) {
         if(master) cardtype =2;
         EEPROM.write(HEADERSIZE + nextCardNo*BLOCKSIZE + CARDNOSIZE,cardtype);
         //Update the header
-        writeMaxCardNo(nextCardNo); 
+        writeMaxCardNo(nextCardNo+1); 
     }
     r = true;
   } else {
