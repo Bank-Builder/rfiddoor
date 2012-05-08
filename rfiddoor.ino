@@ -1,62 +1,54 @@
-#include <ui.h>
-#include <buffer.h>
-#include <vs1053b_patches.h>
-#include <vs10xx.h>
-#include <player.h>
-#include <venc44k2q05.h>
-#include <config.h>
-#include <mmc.h>
-#include <vs1053b_patches_flac.h>
-#include <filesys.h>
-#include <record.h>
-#include <storage.h>
+
 #include <SoftwareSerial.h>
+#include <EEPROM.h>
 
 SoftwareSerial mySerial(2, 3);//pin2-Rx,pin3-Tx(note: pin3 is actually later used as volume down input)
-unsigned char card[100];
+
+// BLOCKSIZE = CARNOSIZE + CARDTYPE, i.e. store 1 for normal and 2 for master
+#define BLOCKSIZE 11
+#define CARDNOSIZE 10
+#define HEADERSIZE 1
+#define MAXCARDNO 10
+
+unsigned char card[CARDNOSIZE];
+unsigned char eepromcard[CARDNOSIZE];
+
+#define MASTERTIMEOUT 5000
+long lastmasterread=-MASTERTIMEOUT;
+unsigned char MASTER[CARDNOSIZE+1] = "0100032D0D";
 
 void setup()
 {
   Serial.begin(9600);
-  Serial.println("Hello test!");
+  Serial.println("H4H RFID Card Reader:");
   mySerial.begin(9600);// used for receiving command data from the iPod dock.
-  
-  InitSPI();
-  Serial.println("Init SPI");
-  
-  InitIOForVs10xx();
-  Serial.println("Init IO");
-
-  InitIOForKeys();
-  Serial.println("Init IO keys");
-  
-  InitIOForLEDs();
-  Serial.println("Init IO LED");
-
-  InitFileSystem();
-  Serial.println("InitFS");
-
-  Mp3Reset();
-  Serial.println("MP3");  
-  Mp3SetVolume(0,0); //max volume
 }
 
-long lastplayed = 0;
 
 void loop(){
     int r = readCard();
-    if(r==1) {
-        decode();
-        currentFile = findSong() ;
-        AvailableProcessorTime();
-        OpenFile(currentFile);
-      
-        PlayCurrentFile();
-        Mp3SoftReset();    
-  
-  }
-  
- 
+    if(r==1) {  
+        int cardType = cardExists(); 
+        if(cardType == 2)  { // is a master
+          Serial.println("Master is found");
+          lastmasterread = millis();
+          decode(card);
+        } 
+        if(cardType ==1) { //norma;
+           Serial.println("normal");
+        } 
+         
+        if(cardType ==0){ // does not exist
+           if(millis() - lastmasterread < MASTERTIMEOUT){
+              Serial.println("Card Record");
+
+              // this is a card record event
+              writeCard(false); //write a normal card
+              lastmasterread = 0;
+           }
+        }
+
+     }
 }
 
 
@@ -83,33 +75,47 @@ int readCard(){
        }
 } 
 
-void decode(){
+void decode(unsigned char* data){
   unsigned char p;
   for(p=0;p<11;p++){
-      char c = card[p];
+      char c = data[p];
       Serial.print(c);
-      Serial.print(",");
+      Serial.print("");
   }
   Serial.println();
 }
 
-int findSong(){
-  int r = 3;
-  if(compare("0000A371429")==1) r=1;//bird
-  if(compare("0000A33126B")==1) r=2; //dog
-  if(compare("0000A323CF4")==1) r=3; //hen
-  if(compare("0000A32A7BF")==1) r=4; //sheep
-  if(compare("0000A35B1AE")==1) r=5; //rooster
-  
+
+// 0 = does not exist
+// 1 = does exist and normal
+// 2 = master
+int cardExists(){
+  Serial.println("in card exists");
+  int r=0;
+  if(compare(MASTER)==1) {
+    r=2; 
+  } else {
+    for(int i=0; i< readMaxCardNo(); i++){
+       int cardReadResult = readCard(i);
+       Serial.print("Card read from eeprom:");
+       decode(eepromcard);
+       if(compare(eepromcard)==1){
+           r = cardReadResult;
+           break;
+       }
+    }
+  }
+  Serial.print("card exists returns:");
+  Serial.println(r);
 
   return r;
   
 }
 
 
-int compare(const char* p){
+int compare(unsigned char* p){
    int r = 1;
-   for(int i=0; i< 11; i++){
+   for(int i=0; i< CARDNOSIZE; i++){
       if(card[i] == *p) p++;
       else {
         r = 0;
@@ -118,3 +124,73 @@ int compare(const char* p){
    }
    return r;
 }
+
+
+// 0 = fail
+// 1 = normal
+// 2 = master
+int readCard(int cardno) {
+  Serial.print("in read card cardno:");
+  Serial.println(cardno);
+
+  int r=0;
+  if(cardno> readMaxCardNo() || cardno<0) {
+    r = 0;
+  }else{
+    for(int i=0; i<CARDNOSIZE; i++){
+       eepromcard[i] = EEPROM.read(HEADERSIZE + cardno*BLOCKSIZE + i);
+    }
+    // Calculate checksum
+    
+    // Determine cardtype
+    r = EEPROM.read(HEADERSIZE + cardno*BLOCKSIZE + CARDNOSIZE );  // offset for checksum
+    if(r!=1 && r!=2) r=0;
+  }
+  Serial.print("exit read card result:");
+  Serial.println(r);
+
+  return r;
+}
+
+int readMaxCardNo(){
+  int r = EEPROM.read(0);
+  Serial.print("ReadMax Cardno:");
+  Serial.println(r);
+  return r;
+}
+
+void writeMaxCardNo(int maxCardNo){
+  EEPROM.write(0,maxCardNo);
+ 
+}
+
+
+int writeCard(boolean master) {
+  Serial.println("in write card");
+  int r = 0;
+  int nextCardNo = readMaxCardNo()+1;
+  if(nextCardNo < MAXCARDNO) {
+    if(cardExists()==0){
+        // Write card no
+        for(int i=0; i<CARDNOSIZE; i++){
+          EEPROM.write(HEADERSIZE + nextCardNo*BLOCKSIZE + i,card[i]);
+        }
+        // Write card type
+        int cardtype = 1;
+        if(master) cardtype =2;
+        EEPROM.write(HEADERSIZE + nextCardNo*BLOCKSIZE + CARDNOSIZE,cardtype);
+        //Update the header
+        writeMaxCardNo(nextCardNo); 
+    }
+    r = true;
+  } else {
+    r = false;
+  }
+  
+  
+  Serial.print("exit write card result:");
+  Serial.println(r);
+  return r; 
+}
+
+
