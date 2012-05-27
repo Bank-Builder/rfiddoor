@@ -1,6 +1,6 @@
-
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
+#include <EEPROM_RFID.h>
 
 SoftwareSerial mySerial(2, 3);//pin2-Rx,pin3-Tx(note: pin3 is actually later used as volume down input)
 
@@ -13,20 +13,32 @@ SoftwareSerial mySerial(2, 3);//pin2-Rx,pin3-Tx(note: pin3 is actually later use
 unsigned char card[CARDNOSIZE];
 unsigned char eepromcard[CARDNOSIZE];
 
+int pin = 13;
+volatile int state = LOW;
+
 #define MASTERTIMEOUT 5000
 long lastmasterread=-MASTERTIMEOUT;
 unsigned char MASTER[CARDNOSIZE+1] = "0100032D0D";
 
+//Use the EEPROM to store & lookup registered RFID Tags
+EEPROM_RFID tags(BLOCKSIZE);
+
 void setup()
 {
+  
   Serial.begin(9600);
   Serial.println("H4H RFID Card Reader:");
   mySerial.begin(9600);// used for receiving command data from the iPod dock.
+  Serial.println("Setting up reset interrupt");
+  //pinMode(pin, OUTPUT);
+  //attachInterrupt(0, resetEEPROM, CHANGE);
+  tags.clear();
 }
 
 
 void loop(){
-    int r = readCard();
+  digitalWrite(pin, state); //ready interupt pin to a LOW state  
+  int r = readCard();
     if(r==1) {  
         int cardType = cardExists(); 
         if(cardType == 2)  { // is a master
@@ -34,7 +46,7 @@ void loop(){
           lastmasterread = millis();
           decode(card);
         } 
-        if(cardType ==1) { //norma;
+        if(cardType ==1) { //normal;
            Serial.println("normal");
         } 
          
@@ -152,6 +164,7 @@ int readCard(int cardno) {
   return r;
 }
 
+
 int readMaxCardNo(){
   int r = EEPROM.read(0);
   Serial.print("ReadMax Cardno:");
@@ -160,10 +173,9 @@ int readMaxCardNo(){
 }
 
 void writeMaxCardNo(int maxCardNo){
-  EEPROM.write(0,maxCardNo);
+  //EEPROM.write(0,maxCardNo);
  
 }
-
 
 int writeCard(boolean master) {
   Serial.println("in write card");
