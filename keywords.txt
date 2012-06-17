@@ -1,2 +1,21 @@
-EEPROM_RFID      KEYWORD1
-clear            KEYWORD2
+RFIDtags        KEYWORD1
+clear           KEYWORD2
+hardclear       KEYWORD2
+#######################################
+# Syntax Coloring Map For Ultrasound
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+EEPROM	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
