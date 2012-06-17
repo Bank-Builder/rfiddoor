@@ -1,19 +1,21 @@
-rfidoor ver 0.1
+rfidoor ver 0.2
 ===============
 
-This is the code for an RFID door application using Arduino UNO, and RFID tags and Magnetic lock.  The idea is that a master RFID tag can register subsequent tags and these tags can be used to open the RFID door.  The Arduino controls the magnetic lock via a relay.
+This is the code for an RFID door application using Arduino UNO, and RFID tags and Magnetic lock.  
+The master RFID tag can register subsequent tags and these tags can be used to open the RFID door.  
+The Arduino controls the magnetic lock via a relay.
 
 Files
 -----
 This project contains the following files:
-EEPROM_help.ino		A set of helper functions for the EEPROM
-rfidoor.ino		The main RFID Door application
+RFIDtags.cpp    A C++class that allows for the storage and retrieval of RFID tags from EEPROM
+RFIDtags.h    Header file for RFIDtags class
+rfidoor.ino   The main RFID Door application
 
 
 =======
 Usage
 -----
-> //  will figures this part out later ...
+> //  will figure this part out later ...
 
 (c) Copyright House4Hack, Licensed under Creative Commons.
-
